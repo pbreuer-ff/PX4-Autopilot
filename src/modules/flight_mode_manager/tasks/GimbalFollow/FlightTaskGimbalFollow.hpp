@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2017-2022 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,36 @@
  ****************************************************************************/
 
 /**
- * @file flight_mode_manager_params.c
+ * @file FlightTaskGimbalFollow.hpp
+ *
+ * Flight task for manual gimbal pan and tilt control (vehicle roll and throttle same as FlightTaskManualPosition)
+ *
+ * @author Peter Breuer <peter@freeflysystems.com>
  */
-`
+
+#pragma once
+
+#include "FlightTaskManualPosition.hpp"
+#include <uORB/Publication.hpp>
+#include <uORB/topics/gimbal_manager_set_attitude.h>
+#include <uORB/topics/gimbal_device_attitude_status.h>
+
+class FlightTaskGimbalFollow : public FlightTaskManualPosition
+{
+public:
+	FlightTaskGimbalFollow();
+
+	virtual ~FlightTaskGimbalFollow() = default;
+	bool activate(const vehicle_local_position_setpoint_s &last_setpoint) override;
+
+protected:
+	void _updateSetpoints() override;
+	void _scaleSticks() override;
+	void _publishGimbalSetpoints();
+
+private:
+	matrix::Vector2f _gimbal_rate_setpoint; // order: tilt-pan aka pitch-yaw
+	uORB::Publication<gimbal_manager_set_attitude_s> _gimbal_manager_set_attitude_pub{ORB_ID(gimbal_manager_set_attitude)};
+	uORB::Subscription _gimbal_device_attitude_status_sub{ORB_ID(gimbal_device_attitude_status)};
+
+};

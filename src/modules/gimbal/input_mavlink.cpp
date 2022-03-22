@@ -946,7 +946,7 @@ void InputMavlinkGimbalV2::_set_control_data_from_set_attitude(ControlData &cont
 	}
 }
 
-//TODO move this one to input.cpp such that it can be shared across functions
+// TODO move this one to input.cpp such that it can be shared across functions
 void InputMavlinkGimbalV2::_ack_vehicle_command(const vehicle_command_s &cmd, uint8_t result)
 {
 	vehicle_command_ack_s vehicle_command_ack{};

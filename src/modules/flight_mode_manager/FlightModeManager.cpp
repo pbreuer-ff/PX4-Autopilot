@@ -273,6 +273,11 @@ void FlightModeManager::start_flight_task()
 			break;
 
 		case 4:
+
+		case 5:
+			error = switchTask(FlightTaskIndex::GimbalFollow);
+			break;
+
 		default:
 			if (_param_mpc_pos_mode.get() != 4) {
 				PX4_ERR("MPC_POS_MODE %" PRId32 " invalid, resetting", _param_mpc_pos_mode.get());
@@ -452,7 +457,7 @@ void FlightModeManager::generateTrajectorySetpoint(const float dt,
 {
 	_current_task.task->setYawHandler(_wv_controller);
 
-	// If the task fails sned out empty NAN setpoints and the controller will emergency failsafe
+	// If the task fails send out empty NAN setpoints and the controller will emergency failsafe
 	vehicle_local_position_setpoint_s setpoint = FlightTask::empty_setpoint;
 	vehicle_constraints_s constraints = FlightTask::empty_constraints;
 

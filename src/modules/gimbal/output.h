@@ -81,7 +81,7 @@ protected:
 
 	bool _stabilize[3] = { false, false, false };
 
-	// Pitch and role are by default aligned with the horizon.
+	// Pitch and roll are aligned with the horizon by default.
 	// Yaw follows the vehicle (not lock/absolute mode).
 	bool _absolute_angle[3] = {true, true, false };
 

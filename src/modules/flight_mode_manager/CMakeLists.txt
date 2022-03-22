@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2020 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2022 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -62,6 +62,7 @@ list(APPEND flight_tasks_all
 	ManualPosition
 	ManualPositionSmoothVel
 	Transition
+	GimbalFollow # TODO: (pbreuer) list here or under flight_tasks_to_add?
 	${flight_tasks_to_add}
 )
 
