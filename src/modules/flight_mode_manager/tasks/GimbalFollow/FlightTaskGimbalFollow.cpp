@@ -46,14 +46,32 @@ bool FlightTaskGimbalFollow::activate(const vehicle_local_position_setpoint_s &l
 
 	_gimbal_rate_setpoint = Vector2f(0.f, 0.f); // ensure gimbal is not moving
 
-  	PX4_INFO("FlightTaskGimbalFollow activate was called! ret: %d", ret); // report if activation was successful
+	/* _updateHeadingSetpoints();
+
+	gimbal_device_attitude_status_s gimbal_device_attitude_status;
+
+	if (_gimbal_device_attitude_status_sub.update(&gimbal_device_attitude_status)) { // ensure gimbal is pointing in vehicle heading direction
+
+		if (gimbal_device_attitude_status.device_flags & gimbal_device_attitude_status_s::DEVICE_FLAGS_YAW_LOCK) {
+
+			_gimbal_attitude_setpoint = Vector2f(4.f, 0.f);
+		}
+
+		else {
+			_gimbal_attitude_setpoint = Vector2f(0.f, 0.f);
+		}
+	}
+
+	_publishGimbalSetpoints(); */
+
+	_gimbal_attitude_setpoint = Vector2f(NAN, NAN); // ensure that no attitude cmds are sent out
+
+	PX4_DEBUG("Gimbal follow task activated: %u", ret);
 
   	return ret;
 }
 
 void FlightTaskGimbalFollow::_scaleSticks()
-
-	// Multicopter control
 {
 	// Use sticks input with deadzone and exponential curve for vertical velocity
 	const float vel_max_z = (_sticks.getPosition()(2) > 0.0f) ? _constraints.speed_down : _constraints.speed_up;
@@ -87,32 +105,37 @@ void FlightTaskGimbalFollow::_scaleSticks()
 
 	_velocity_setpoint.xy() = vel_sp_xy;
 
-	// set _yawspeed_setpoint to adjust to gimbal pan TODO
-
-	/* gimbal_device_attitude_status_s gimbal_device_attitude_status;
+	gimbal_device_attitude_status_s gimbal_device_attitude_status;
 
 	if (_gimbal_device_attitude_status_sub.update(&gimbal_device_attitude_status)) {
 
 		Quaternion<float> q_gimbal(gimbal_device_attitude_status.q);
-		Euler<float> ypr_gimbal(q_gimbal);
-		float yaw_gimbal = ypr_gimbal(0);
+		Euler<float> rpy_gimbal(q_gimbal); // rad
+		float yaw_gimbal = rpy_gimbal(2);
 
-		if (gimbal_device_attitude_status.device_flags & gimbal_device_attitude_status_s::DEVICE_FLAGS_YAW_LOCK) { // angles relative to absolute north
+		// _sticks.getPosition(Expo) entries in order pitch, roll, throttle, yaw
+		float stick_pan = _sticks.getPositionExpo()(3);
 
-			_yaw_setpoint = yaw_gimbal; // TODO: (pbreuer) is gimbal world frame aligned w/ absolute north too?
+		if (gimbal_device_attitude_status.device_flags & gimbal_device_attitude_status_s::DEVICE_FLAGS_YAW_LOCK) {
+
+			PX4_DEBUG("Gimbal yaw lock active, gimbal yaw angle relative to absolute North!");
+
+			if (gimbal_device_attitude_status.angular_velocity_z < 0.01f) _yaw_setpoint = yaw_gimbal; // only adjust heading to gimbal if gimbal no longer panning
+
+			_gimbal_rate_setpoint(0) = stick_pan;
 		}
 		else { // angles relative to vehicle heading
 
-			_yaw_setpoint = yaw_gimbal + _yaw;
+			PX4_DEBUG("Gimbal yaw lock inactive, gimbal yaw angle relative to aircraft heading!");
+
+			_yawspeed_setpoint = yaw_gimbal;
+			_gimbal_rate_setpoint(0) = -_yawspeed_setpoint;
+
+			if (abs(stick_pan) > 0.01f) _gimbal_rate_setpoint(0) = stick_pan; // allow vehicle heading adjustment
 		}
-	} */
+	}
 
-	// Gimbal control
-
-	// TODO: (pbreuer) implement custom scaling for gimbal use here
-
-	// _sticks.getPosition(Expo) entries in order pitch, roll, throttle, yaw
-	_gimbal_rate_setpoint(0) = _sticks.getPositionExpo()(3); // pan <-> yaw stick
+	// _gimbal_rate_setpoint(0) = _sticks.getPositionExpo()(3); // pan <-> yaw stick
 	_gimbal_rate_setpoint(1) = _sticks.getPositionExpo()(0); // tilt <-> pitch stick
 }
 
@@ -129,25 +152,22 @@ void FlightTaskGimbalFollow::_updateSetpoints()
 void FlightTaskGimbalFollow::_publishGimbalSetpoints()
 {
 
-	// gimbal_manager_set_attitude_s gimbal_attitude{};
-	gimbal_attitude.timestamp = hrt_absolute_time();
-	// gimbal_attitude.origin_sysid = 255; // check!
-	// gimbal_attitude.origin_compid = 0; // check!
-	gimbal_attitude.target_system = 1;
-	gimbal_attitude.target_component = 0;
-	gimbal_attitude.flags = 0; // check!
-	gimbal_attitude.gimbal_device_id = 0; // comp id of gimbal (0 for all gimbals)
+	_gimbal_setpoint.timestamp = hrt_absolute_time();
+	// _gimbal_setpoint.origin_sysid = 255;
+	// _gimbal_setpoint.origin_compid = 0;
+	_gimbal_setpoint.target_system = 1;
+	_gimbal_setpoint.target_component = 0;
+	_gimbal_setpoint.flags = gimbal_manager_set_attitude_s::GIMBAL_MANAGER_FLAGS_YAW_LOCK;
+	_gimbal_setpoint.gimbal_device_id = 0; // comp id of gimbal (0 for all gimbals)
 
-	matrix::Quatf q(NAN, NAN, NAN, NAN);
-	q.copyTo(gimbal_attitude.q); // don't command gimbal attitude
+	matrix::Eulerf rpy(0.f, _gimbal_attitude_setpoint(1), _gimbal_attitude_setpoint(0));
+	matrix::Quatf q(rpy);
 
-	gimbal_attitude.angular_velocity_x =  0.0f; // no tilt <-> roll authority
-	gimbal_attitude.angular_velocity_y = _gimbal_rate_setpoint(1); // pitch (tilt)
-	gimbal_attitude.angular_velocity_z = _gimbal_rate_setpoint(0); // yaw (pan)
+	q.copyTo(_gimbal_setpoint.q); // always NAN (no cmd) except during activate()
 
-	// PX4_DEBUG("_gimbal_rate_setpoint(2): %lf", static_cast<double>(_gimbal_rate_setpoint(2)));
+	_gimbal_setpoint.angular_velocity_x =  0.0f; // no tilt <-> roll authority
+	_gimbal_setpoint.angular_velocity_y = _gimbal_rate_setpoint(1); // pitch (tilt)
+	_gimbal_setpoint.angular_velocity_z = _gimbal_rate_setpoint(0); // yaw (pan)
 
-	//_gimbal_manager_set_attitude_pub.publish(gimbal_attitude);
-
-	orb_publish(ORB_ID(gimbal_manager_set_attitude), _gimbal_manager_set_attitude_pub, &gimbal_attitude);
+	orb_publish(ORB_ID(gimbal_manager_set_attitude), _gimbal_manager_set_attitude_pub, &_gimbal_setpoint);
 }

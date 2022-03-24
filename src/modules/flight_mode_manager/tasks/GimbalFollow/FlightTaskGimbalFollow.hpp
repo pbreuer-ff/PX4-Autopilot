@@ -60,9 +60,10 @@ protected:
 	void _publishGimbalSetpoints();
 
 private:
-	matrix::Vector2f _gimbal_rate_setpoint; // order: tilt-pan aka pitch-yaw
-	// uORB::Publication<gimbal_manager_set_attitude_s> _gimbal_manager_set_attitude_pub{ORB_ID(gimbal_manager_set_attitude)};
-	gimbal_manager_set_attitude_s gimbal_attitude{};
-	orb_advert_t _gimbal_manager_set_attitude_pub = orb_advertise(ORB_ID(gimbal_manager_set_attitude), &gimbal_attitude);
+
+	matrix::Vector2f _gimbal_rate_setpoint; // order: tilt-pan aka pitch-yaw rate
+	matrix::Vector2f _gimbal_attitude_setpoint; // order: tilt-pan aka pitch-yaw
+	gimbal_manager_set_attitude_s _gimbal_setpoint{};
+	orb_advert_t _gimbal_manager_set_attitude_pub = orb_advertise(ORB_ID(gimbal_manager_set_attitude), &_gimbal_setpoint);
 	uORB::Subscription _gimbal_device_attitude_status_sub{ORB_ID(gimbal_device_attitude_status)};
 };

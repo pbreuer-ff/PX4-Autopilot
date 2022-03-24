@@ -130,7 +130,7 @@ void PositionControl::_positionControl()
 	// make sure there are no NAN elements for further reference while constraining
 	ControlMath::setZeroIfNanVector3f(vel_sp_position);
 
-	// Constrain horizontal velocity by prioritizing the velocity component along the
+	// Constrain horizontal velocity by prioritizing the velocity component along
 	// the desired position setpoint over the feed-forward term.
 	_vel_sp.xy() = ControlMath::constrainXY(vel_sp_position.xy(), (_vel_sp - vel_sp_position).xy(), _lim_vel_horizontal);
 	// Constrain velocity in z-direction.
