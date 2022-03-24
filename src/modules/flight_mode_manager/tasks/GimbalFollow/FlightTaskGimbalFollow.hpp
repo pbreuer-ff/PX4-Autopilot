@@ -49,7 +49,7 @@
 class FlightTaskGimbalFollow : public FlightTaskManualPosition
 {
 public:
-	FlightTaskGimbalFollow();
+	FlightTaskGimbalFollow() = default;
 
 	virtual ~FlightTaskGimbalFollow() = default;
 	bool activate(const vehicle_local_position_setpoint_s &last_setpoint) override;
@@ -61,7 +61,8 @@ protected:
 
 private:
 	matrix::Vector2f _gimbal_rate_setpoint; // order: tilt-pan aka pitch-yaw
-	uORB::Publication<gimbal_manager_set_attitude_s> _gimbal_manager_set_attitude_pub{ORB_ID(gimbal_manager_set_attitude)};
+	// uORB::Publication<gimbal_manager_set_attitude_s> _gimbal_manager_set_attitude_pub{ORB_ID(gimbal_manager_set_attitude)};
+	gimbal_manager_set_attitude_s gimbal_attitude{};
+	orb_advert_t _gimbal_manager_set_attitude_pub = orb_advertise(ORB_ID(gimbal_manager_set_attitude), &gimbal_attitude);
 	uORB::Subscription _gimbal_device_attitude_status_sub{ORB_ID(gimbal_device_attitude_status)};
-
 };

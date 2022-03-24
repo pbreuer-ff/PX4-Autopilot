@@ -39,8 +39,6 @@
 
 using namespace matrix;
 
-FlightTaskGimbalFollow::FlightTaskGimbalFollow() {}
-
 bool FlightTaskGimbalFollow::activate(const vehicle_local_position_setpoint_s &last_setpoint)
 {
 	// all requirements from position-mode still have to hold
@@ -62,9 +60,9 @@ void FlightTaskGimbalFollow::_scaleSticks()
 	_velocity_setpoint(2) = vel_max_z * _sticks.getPositionExpo()(2);
 
 	/* Constrain length of stick inputs to 1 for x (roll)*/
-	float stick_roll = _sticks.getPositionExpo()(0);
+	float stick_roll = _sticks.getPositionExpo()(1);
 
-	Vector2f stick_xy_pseudo = {stick_roll, 0.0f}; // only roll (zero pitch)
+	Vector2f stick_xy_pseudo = {0.0f, stick_roll}; // only roll (zero pitch)
 
 	const float mag = math::constrain(stick_xy_pseudo.length(), 0.0f, 1.0f);
 
@@ -89,9 +87,9 @@ void FlightTaskGimbalFollow::_scaleSticks()
 
 	_velocity_setpoint.xy() = vel_sp_xy;
 
-	// set _yawspeed_setpoint to adjust to gimbal pan
+	// set _yawspeed_setpoint to adjust to gimbal pan TODO
 
-	gimbal_device_attitude_status_s gimbal_device_attitude_status;
+	/* gimbal_device_attitude_status_s gimbal_device_attitude_status;
 
 	if (_gimbal_device_attitude_status_sub.update(&gimbal_device_attitude_status)) {
 
@@ -107,16 +105,15 @@ void FlightTaskGimbalFollow::_scaleSticks()
 
 			_yaw_setpoint = yaw_gimbal + _yaw;
 		}
-	}
+	} */
 
 	// Gimbal control
 
 	// TODO: (pbreuer) implement custom scaling for gimbal use here
 
-	// _sticks.getPosition(Expo) entries in order roll-pitch-throttle-yaw
-	_gimbal_rate_setpoint(0) = 0.0f; // no tilt <-> roll authority
-	_gimbal_rate_setpoint(1) = _sticks.getPositionExpo()(1); // tilt <-> pitch stick
-	_gimbal_rate_setpoint(2) = _sticks.getPositionExpo()(3); // pan <-> yaw stick
+	// _sticks.getPosition(Expo) entries in order pitch, roll, throttle, yaw
+	_gimbal_rate_setpoint(0) = _sticks.getPositionExpo()(3); // pan <-> yaw stick
+	_gimbal_rate_setpoint(1) = _sticks.getPositionExpo()(0); // tilt <-> pitch stick
 }
 
 void FlightTaskGimbalFollow::_updateSetpoints()
@@ -132,21 +129,25 @@ void FlightTaskGimbalFollow::_updateSetpoints()
 void FlightTaskGimbalFollow::_publishGimbalSetpoints()
 {
 
-	gimbal_manager_set_attitude_s gimbal_attitude{};
+	// gimbal_manager_set_attitude_s gimbal_attitude{};
 	gimbal_attitude.timestamp = hrt_absolute_time();
-	// gimbal_attitude.origin_sysid = 1;
-	// gimbal_attitude.origin_compid = 1;
+	// gimbal_attitude.origin_sysid = 255; // check!
+	// gimbal_attitude.origin_compid = 0; // check!
 	gimbal_attitude.target_system = 1;
-	gimbal_attitude.target_component = 1;
-	// gimbal_attitude.flags = NAN;
-	gimbal_attitude.gimbal_device_id = 1;
+	gimbal_attitude.target_component = 0;
+	gimbal_attitude.flags = 0; // check!
+	gimbal_attitude.gimbal_device_id = 0; // comp id of gimbal (0 for all gimbals)
 
-	/* matrix::Quatf q(?);
-	q.copyTo(gimbal_attitude.q); */ // Don't command angle
+	matrix::Quatf q(NAN, NAN, NAN, NAN);
+	q.copyTo(gimbal_attitude.q); // don't command gimbal attitude
 
-	gimbal_attitude.angular_velocity_x = _gimbal_rate_setpoint(0);
-	gimbal_attitude.angular_velocity_y = _gimbal_rate_setpoint(1);
-	gimbal_attitude.angular_velocity_z = _gimbal_rate_setpoint(2);
+	gimbal_attitude.angular_velocity_x =  0.0f; // no tilt <-> roll authority
+	gimbal_attitude.angular_velocity_y = _gimbal_rate_setpoint(1); // pitch (tilt)
+	gimbal_attitude.angular_velocity_z = _gimbal_rate_setpoint(0); // yaw (pan)
 
-	_gimbal_manager_set_attitude_pub.publish(gimbal_attitude);
+	// PX4_DEBUG("_gimbal_rate_setpoint(2): %lf", static_cast<double>(_gimbal_rate_setpoint(2)));
+
+	//_gimbal_manager_set_attitude_pub.publish(gimbal_attitude);
+
+	orb_publish(ORB_ID(gimbal_manager_set_attitude), _gimbal_manager_set_attitude_pub, &gimbal_attitude);
 }
